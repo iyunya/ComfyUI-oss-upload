@@ -4,6 +4,7 @@ import io
 from PIL import Image
 import datetime
 import os
+import uuid
 
 def tensor_to_pil(image):
     """
@@ -107,4 +108,102 @@ IMAGE_FORMATS = [
     "JPEG",
     "PNG",
     "WEBP"
-] 
+]
+
+# 支持的视频格式（ComfyUI目前只支持MP4）
+VIDEO_FORMATS = [
+    "mp4"
+]
+
+def get_video_info(video_path):
+    """
+    获取视频文件信息
+    
+    Args:
+        video_path: 视频文件路径
+        
+    Returns:
+        dict: 包含视频信息的字典
+    """
+    if not os.path.exists(video_path):
+        return {"error": "视频文件不存在"}
+    
+    try:
+        file_size = os.path.getsize(video_path)
+        file_size_mb = file_size / (1024 * 1024)
+        
+        # 获取文件扩展名
+        _, ext = os.path.splitext(video_path)
+        ext = ext.lower().lstrip('.')
+        
+        return {
+            "file_size": file_size,
+            "file_size_mb": round(file_size_mb, 2),
+            "extension": ext,
+            "is_valid": ext in [fmt.lower() for fmt in VIDEO_FORMATS]
+        }
+    except Exception as e:
+        return {"error": f"获取视频信息失败: {str(e)}"}
+
+def validate_video_file(video_path, max_size_mb=None):
+    """
+    验证视频文件
+    
+    Args:
+        video_path: 视频文件路径
+        max_size_mb: 最大文件大小限制(MB)，None表示不限制
+        
+    Returns:
+        tuple: (是否有效, 错误信息)
+    """
+    if not video_path or not video_path.strip():
+        return False, "视频路径不能为空"
+    
+    if not os.path.exists(video_path):
+        return False, f"视频文件不存在: {video_path}"
+    
+    if not os.path.isfile(video_path):
+        return False, f"路径不是文件: {video_path}"
+    
+    video_info = get_video_info(video_path)
+    
+    if "error" in video_info:
+        return False, video_info["error"]
+    
+    if not video_info["is_valid"]:
+        return False, f"不支持的视频格式: {video_info['extension']}"
+    
+    if max_size_mb and video_info["file_size_mb"] > max_size_mb:
+        return False, f"视频文件过大: {video_info['file_size_mb']}MB > {max_size_mb}MB"
+    
+    return True, "视频文件验证通过"
+
+def generate_video_filename(prefix="video", include_date=True, extension="mp4", custom_name=None):
+    """
+    生成视频文件名
+    
+    Args:
+        prefix: 文件名前缀
+        include_date: 是否包含日期时间
+        extension: 文件扩展名
+        custom_name: 自定义文件名
+        
+    Returns:
+        str: 生成的文件名
+    """
+    if custom_name and custom_name.strip():
+        filename = custom_name.strip()
+        # 确保有正确的扩展名
+        if not filename.lower().endswith(f'.{extension.lower()}'):
+            filename = f"{filename}.{extension}"
+        return filename
+    
+    # 自动生成文件名
+    timestamp = ""
+    if include_date:
+        timestamp = generate_timestamp() + "_"
+    
+    unique_id = str(uuid.uuid4())[:8]
+    filename = f"{prefix}_{timestamp}{unique_id}.{extension}"
+    
+    return filename 
